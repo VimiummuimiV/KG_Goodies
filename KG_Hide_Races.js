@@ -4,7 +4,7 @@
 // @match          *://klavogonki.ru/gamelist/*
 // @author         Patcher
 // @description    Adds the ability to hide already created or all the games in the game list.
-// @version        3.2.0
+// @version        3.2.1
 // @icon           https://www.google.com/s2/favicons?sz=64&domain=klavogonki.ru
 // ==/UserScript==
 
