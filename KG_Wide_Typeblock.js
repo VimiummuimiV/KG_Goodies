@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KG_Wide_Typeblock
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.2.1
 // @description  try to take over the world!
 // @author       Patcher
 // @match        *://klavogonki.ru/g/?gmid=*
@@ -19,6 +19,7 @@
     mainBlockPosition: 25,
     visibleLines: 1,
     fontSize: 16,
+    alignInputWithFocus: true,
     theme: 'dark'
   };
 
@@ -251,7 +252,7 @@
 
   // Input Alignment
   function alignInputWithTypeFocus() {
-    if (!isWideMode) return;
+    if (!isWideMode || !getSetting('alignInputWithFocus')) return;
     const inputTextBlock = document.getElementById('inputtextblock');
     const typeFocus = document.getElementById('typefocus');
     const typeText = document.getElementById('typetext');
@@ -263,6 +264,27 @@
     const paddingAdjustment = (8 / typeTextRect.width) * 100;
     const adjustedOffset = offsetPercentage - paddingAdjustment;
     inputTextBlock.style.setProperty('margin-left', `${adjustedOffset}%`, 'important');
+  }
+
+  // Input Alignment TOGGLE
+  function resetInputAlignment() {
+    const inputTextBlock = document.getElementById('inputtextblock');
+    if (inputTextBlock) {
+      inputTextBlock.style.removeProperty('margin-left');
+    }
+  }
+
+  function toggleInputAlignment() {
+    const newValue = !getSetting('alignInputWithFocus');
+    setSetting('alignInputWithFocus', newValue);
+
+    if (newValue) {
+      alignInputWithTypeFocus();
+    } else {
+      resetInputAlignment();
+    }
+
+    updateAlignmentIndicator();
   }
 
   // --- Wide Mode Event Listener Management ---
@@ -622,6 +644,7 @@
         [Режим отображения текста:] (двойной клик) по блоку (Построчно/Полностью).<br>
         [Количество строк:] (прокрутите колесо) мыши (вверх/вниз) по блоку.<br>
         [Размер шрифта:] (Ctrl) + (колесо мыши) (вверх/вниз) по блоку.<br>
+        [Выравнивание ввода:] (Alt + Q) + строка ввода в фокусе.<br>
         [Кастомные настройки:] (ПКМ) по строке ввода (Запомнить/Забыть).<br>
         [Следующая игра:] (Ctrl + Enter) если (Ожидание/Гонка).<br>
       `;
@@ -716,6 +739,7 @@
     handleContentChanges();
     updateSavedIndicator();
     updatePartialModeIndicator();
+    updateAlignmentIndicator();
 
     isWideMode = true;
 
@@ -731,13 +755,16 @@
   function addGlobalKeydown() {
     if (globalKeydownHandler) return;
     globalKeydownHandler = (e) => {
-      // Use e.code === 'KeyT' for layout independence
       if (e.key === 'Escape' && isWideMode) {
         exitWideMode(true);
         e.preventDefault();
         e.stopPropagation();
       } else if (e.altKey && e.code === 'KeyT' && isWideMode) {
         toggleTheme();
+        e.preventDefault();
+        e.stopPropagation();
+      } else if (e.altKey && e.code === 'KeyQ' && isWideMode) {
+        toggleInputAlignment();
         e.preventDefault();
         e.stopPropagation();
       }
@@ -1089,6 +1116,37 @@
             <line x1="17" y1="18" x2="3" y2="18"></line>
           </svg>
         `;
+        container.appendChild(span);
+      } else {
+        applyIndicatorBaseStyles(span);
+      }
+    } else {
+      if (span) span.remove();
+    }
+  }
+
+  function updateAlignmentIndicator() {
+    const container = updateIndicatorContainer();
+    if (!container) return;
+    let span = document.getElementById('kg-alignment-indicator');
+    if (getSetting('alignInputWithFocus')) {
+      if (!span) {
+        span = document.createElement('span');
+        span.id = 'kg-alignment-indicator';
+        span.title = 'Выравнивание ввода по фокусу включено';
+        applyIndicatorBaseStyles(span);
+        span.innerHTML = `
+          <svg
+            width="20" height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>
+          </svg>
+      `;
         container.appendChild(span);
       } else {
         applyIndicatorBaseStyles(span);
