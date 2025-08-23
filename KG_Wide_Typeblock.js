@@ -755,10 +755,8 @@
   function addGlobalKeydown() {
     if (globalKeydownHandler) return;
     globalKeydownHandler = (e) => {
-      if (e.key === 'Escape' && isWideMode) {
+      if ((e.key === 'Escape' || e.key === 'Enter') && isWideMode) {
         exitWideMode(true);
-        e.preventDefault();
-        e.stopPropagation();
       } else if (e.altKey && e.code === 'KeyT' && isWideMode) {
         toggleTheme();
         e.preventDefault();
