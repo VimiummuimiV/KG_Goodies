@@ -220,8 +220,9 @@
       // Set up key event listeners
       window.addEventListener('keydown', CORE.handleKeyDown);
 
-      // Add class to body to indicate Ctrl+Enter hotkey is attached
-      document.body.classList.add('next-race-hotkey-exist');
+      // Register class so other scripts know this one handles Ctrl+Enter
+      document.body.classList.add('easy-race-flow-registered');
+
       // Apply initial color to input field based on saved state
       if (ELEMENTS.inputElement) {
         const color = STATE.checkerInterrupted ? '60' : '140'; // Yellow or Green
@@ -322,6 +323,9 @@
     handleKeyDown: function (event) {
       const { ctrl, key } = CONFIG.keyBindings.createNextRace;
       if (event.ctrlKey === ctrl && event.key === key) {
+        // Yield to KG_Latest_Games or KG_Wide_Typeblock if they handle Ctrl+Enter
+        if (document.body.classList.contains('latest-games-registered') ||
+            document.body.classList.contains('wide-typeblock-registered')) return;
         console.log('Ctrl + Enter was pressed. Creating next race.');
         HELPERS.navigateTo(HELPERS.createGameLink());
         return;
