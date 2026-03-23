@@ -778,9 +778,11 @@
   }
 
   // Global Ctrl+Enter hotkey for replay navigation (define once, always active)
+  document.body.classList.add('wide-typeblock-registered');
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && (e.key === 'Enter' || e.code === 'Enter')) {
-      if (!document.body.classList.contains('next-race-hotkey-exist')) {
+      if (!document.body.classList.contains('latest-games-registered') &&
+          !document.body.classList.contains('easy-race-flow-registered')) {
         const waiting = document.getElementById('waiting');
         const racing = document.getElementById('racing');
         if (
