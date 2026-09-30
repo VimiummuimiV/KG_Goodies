@@ -4,6 +4,7 @@
 // @version      1.9
 // @match        https://klavogonki.ru/gamelist/*
 // @match        https://klavogonki.ru/g/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=klavogonki.ru
 // @grant        none
 // @run-at       document-start
 // ==/UserScript==
@@ -35,8 +36,6 @@
 
     const styles = `
         ${SMILE_SELECTOR} {
-            width: ${SMILE_WIDTH}px !important;
-            height: ${SMILE_HEIGHT}px !important;
             max-width: ${SMILE_WIDTH}px !important;
             max-height: ${SMILE_HEIGHT}px !important;
             object-fit: none !important;
