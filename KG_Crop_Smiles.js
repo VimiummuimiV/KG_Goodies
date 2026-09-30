@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KG_Crop_Smiles
 // @namespace    klavogonki-smile-crop
-// @version      1.8
+// @version      1.9
 // @match        https://klavogonki.ru/gamelist/*
 // @match        https://klavogonki.ru/g/*
 // @grant        none
@@ -12,16 +12,26 @@
     'use strict';
 
     // ===== Smile size =====
-    const SMILE_WIDTH = 20;
-    const SMILE_HEIGHT = 20;
+    const SMILE_WIDTH = 60;
+    const SMILE_HEIGHT = 35;
     const OBJECT_POSITION = 'center';
     const SMILE_SELECTOR = 'img.smile';
 
     // ===== Popup =====
     const POPUP_DELAY = 150;
     const POPUP_OFFSET = 8;
-    const POPUP_BACKGROUND = 'rgba(20,20,20,.95)';
-    const POPUP_BORDER = '1px solid rgba(255,255,255,.15)';
+
+    const POPUP_THEME_DARK = {
+        background: 'rgba(20,20,20,.95)',
+        border: '1px solid rgba(255,255,255,.15)',
+        shadow: '0 4px 16px rgba(0,0,0,.5)'
+    };
+
+    const POPUP_THEME_LIGHT = {
+        background: 'rgba(248,248,248,.97)',
+        border: '1px solid rgba(0,0,0,.15)',
+        shadow: '0 4px 16px rgba(0,0,0,.2)'
+    };
 
     const styles = `
         ${SMILE_SELECTOR} {
@@ -39,10 +49,7 @@
             pointer-events: none !important;
             display: none;
             padding: 4px !important;
-            background: ${POPUP_BACKGROUND} !important;
-            border: ${POPUP_BORDER} !important;
             border-radius: 6px !important;
-            box-shadow: 0 4px 16px rgba(0,0,0,.5) !important;
             line-height: 0 !important;
         }
         #smile-popup > img {
@@ -62,6 +69,41 @@
     let showTimer;
     let currentImage;
 
+    // Walk up the DOM until a non-transparent background is found,
+    // then pick the popup theme by its luminance.
+    const detectTheme = () => {
+        let element = document.body || document.documentElement;
+
+        while (element) {
+            const computed = getComputedStyle(element).backgroundColor;
+            const match = computed.match(/rgba?\(([^)]+)\)/);
+
+            if (match) {
+                const parts = match[1].split(',').map(part => parseFloat(part.trim()));
+                const red = parts[0];
+                const green = parts[1];
+                const blue = parts[2];
+                const alpha = parts[3] === undefined ? 1 : parts[3];
+
+                if (alpha > 0) {
+                    const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+                    return luminance > 0.5 ? 'light' : 'dark';
+                }
+            }
+
+            element = element.parentElement;
+        }
+
+        return 'dark';
+    };
+
+    const applyTheme = (element) => {
+        const theme = detectTheme() === 'light' ? POPUP_THEME_LIGHT : POPUP_THEME_DARK;
+        element.style.setProperty('background', theme.background, 'important');
+        element.style.setProperty('border', theme.border, 'important');
+        element.style.setProperty('box-shadow', theme.shadow, 'important');
+    };
+
     const hidePopup = () => {
         clearTimeout(showTimer);
         currentImage = null;
@@ -77,6 +119,7 @@
             document.body.appendChild(popup);
         }
 
+        applyTheme(popup);
         popupImage.src = image.src;
         popup.style.display = 'block';
 
