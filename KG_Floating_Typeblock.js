@@ -325,7 +325,9 @@
     const focus = textOf('typefocus');
     const total = before.length + focus.length + textOf('afterfocus').length;
     if (!total) return 0;
-    const typed = document.getElementById('inputtext')?.value ?? '';
+    const input = document.getElementById('inputtext');
+    // A disabled input holds the site placeholder, not typed text
+    const typed = input && !input.classList.contains('disabled') ? input.value : '';
     return (before.length + getCommonPrefixLength(typed, focus)) / total;
   }
 
