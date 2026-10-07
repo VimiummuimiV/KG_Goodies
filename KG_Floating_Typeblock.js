@@ -40,24 +40,6 @@
     theme: 'dark'
   };
 
-  const HELP_TEXT = `
-    [Помощь:] (Ctrl) + (наведите курсор) на строку ввода.<br>
-    [Плавающий режим:] (Alt + W) или (двойной клик) по строке ввода (Вход/Выход).<br>
-    [Выход:] (ESC) в плавающем режиме.<br>
-    [Автовход:] (Alt + A) включить/выключить автоматический вход в плавающий режим.<br>
-    [Тема:] (Alt + T) или (Ctrl + клик) по фону.<br>
-    [Затемнение:] зажмите (ЛКМ) и тяните (вверх/вниз) по фону.<br>
-    [Ширина блока:] зажмите (ЛКМ) и тяните (влево/вправо) по блоку.<br>
-    [Положение блока:] зажмите (ЛКМ) и тяните (вверх/вниз) по блоку.<br>
-    [Режим отображения текста:] (Alt + L) или (двойной клик) по блоку (Построчно/Полностью).<br>
-    [Количество строк:] (прокрутите колесо) мыши (вверх/вниз) по блоку.<br>
-    [Размер шрифта:] (Ctrl) + (колесо мыши) (вверх/вниз) по блоку.<br>
-    [Выравнивание ввода:] (Alt + Q) + строка ввода в фокусе.<br>
-    [Прогресс-бар:] (Alt + P) показать/скрыть (виден, только пока текст обрезан).<br>
-    [Кастомные настройки:] (ПКМ) по строке ввода (Запомнить/Забыть).<br>
-    [Следующая игра:] (Ctrl + Enter) если (Ожидание/Гонка).<br>
-  `;
-
   // ─── Themes ────────────────────────────────────────────────────────────────
 
   const disabledLight = 'hsl(0, 0%, 85%)';
@@ -103,6 +85,8 @@
       }
     }
   };
+
+  const THEME_NAMES = { dark: 'тёмная', light: 'светлая' };
 
   // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -161,7 +145,8 @@
     toastTimeout = setTimeout(() => toast.remove(), TOAST_DURATION);
   }
 
-  const formatToggle = (label, isOn) => `${label}: ${isOn ? 'вкл' : 'выкл'}`;
+  const onOff = (isOn) => isOn ? 'вкл' : 'выкл';
+  const formatToggle = (label, isOn) => `${label}: ${onOff(isOn)}`;
 
   // ─── Settings ──────────────────────────────────────────────────────────────
 
@@ -235,6 +220,12 @@
     saveCurrentSettings(settings);
   }
 
+  // Flip a boolean setting and confirm the new state with a toast
+  function toggleSetting(key, label) {
+    setSetting(key, !getSetting(key));
+    showToast(formatToggle(label, getSetting(key)));
+  }
+
   const isPartialMode = () => getSetting('isPartialMode');
 
   // ─── Text visibility (both modes) ──────────────────────────────────────────
@@ -291,7 +282,7 @@
   }
 
   function toggleTextVisibilityMode() {
-    setSetting('isPartialMode', !isPartialMode());
+    toggleSetting('isPartialMode', 'Построчное отображение');
     refreshTextView();
     updateIndicators();
   }
@@ -352,7 +343,7 @@
   }
 
   function toggleProgressBar() {
-    setSetting('showProgress', !getSetting('showProgress'));
+    toggleSetting('showProgress', 'Прогресс-бар');
     updateProgressBar();
     updateIndicators();
   }
@@ -360,8 +351,7 @@
   // ─── Auto enter ────────────────────────────────────────────────────────────
 
   function toggleAutoEnterFloating() {
-    setSetting('autoEnterFloating', !getSetting('autoEnterFloating'));
-    showToast(formatToggle('Автовход в плавающий режим', getSetting('autoEnterFloating')));
+    toggleSetting('autoEnterFloating', 'Автовход в плавающий режим');
   }
 
   // ─── Input alignment (floating) ────────────────────────────────────────────
@@ -382,7 +372,7 @@
   }
 
   function toggleInputAlignment() {
-    setSetting('alignInputWithFocus', !getSetting('alignInputWithFocus'));
+    toggleSetting('alignInputWithFocus', 'Выравнивание ввода');
     if (getSetting('alignInputWithFocus')) alignInputWithTypeFocus();
     else resetInputAlignment();
     updateIndicators();
@@ -402,6 +392,7 @@
     setSetting('theme', currentTheme === 'dark' ? 'light' : 'dark');
     applySettings();
     showFontSizeIndicator(true); // Only update if present
+    showToast(`Тема: ${THEME_NAMES[currentTheme]}`);
   }
 
   // ─── Input colors (floating) ───────────────────────────────────────────────
@@ -606,14 +597,6 @@
     dimmingBg.id = 'kg-dimming-background';
     let dragStart = null;
 
-    // Ctrl + Click toggles theme
-    addEvent(dimmingBg, 'click', (e) => {
-      if (e.button === 0 && e.ctrlKey) {
-        toggleTheme();
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    });
     addEvent(dimmingBg, 'mousedown', (e) => {
       if (e.button !== 0) return;
       dragStart = { y: e.clientY, level: getSetting('dimmingLevel') };
@@ -758,6 +741,48 @@
 
   // ─── Help popup (both modes) ─────────────────────────────────────────────────
 
+  // Hotkeys show the current state of their setting
+  const HELP_SECTIONS = [
+    {
+      title: 'Горячие клавиши',
+      items: [
+        { text: '[Плавающий режим:] (Alt + W) вход/выход.', status: () => onOff(isFloatingMode) },
+        { text: '[Выход:] (ESC) в плавающем режиме.' },
+        { text: '[Автовход:] (Alt + A) в плавающий режим.', status: () => onOff(getSetting('autoEnterFloating')) },
+        { text: '[Тема:] (Alt + T).', status: () => THEME_NAMES[currentTheme] },
+        { text: '[Режим отображения текста:] (Alt + L).', status: () => isPartialMode() ? 'построчно' : 'полностью' },
+        { text: '[Выравнивание ввода:] (Alt + Q) + строка ввода в фокусе.', status: () => onOff(getSetting('alignInputWithFocus')) },
+        { text: '[Прогресс-бар:] (Alt + P) (виден, только пока текст обрезан).', status: () => onOff(getSetting('showProgress')) },
+        { text: '[Следующая игра:] (Ctrl + Enter) если (Ожидание/Гонка).' }
+      ]
+    },
+    {
+      title: 'Мышь',
+      items: [
+        { text: '[Помощь:] (Ctrl) + (наведите курсор) на строку ввода.' },
+        { text: '[Плавающий режим:] (двойной клик) по строке ввода.' },
+        { text: '[Режим отображения текста:] (двойной клик) по блоку.' },
+        { text: '[Затемнение:] зажмите (ЛКМ) и тяните (вверх/вниз) по фону.' },
+        { text: '[Ширина блока:] зажмите (ЛКМ) и тяните (влево/вправо) по блоку.' },
+        { text: '[Положение блока:] зажмите (ЛКМ) и тяните (вверх/вниз) по блоку.' },
+        { text: '[Количество строк:] (прокрутите колесо) мыши (вверх/вниз) по блоку.' },
+        { text: '[Размер шрифта:] (Ctrl) + (колесо мыши) (вверх/вниз) по блоку.' },
+        { text: '[Кастомные настройки:] (ПКМ) по строке ввода (Запомнить/Забыть).' }
+      ]
+    }
+  ];
+
+  function renderHelp(theme) {
+    const accent = (text) => `<span style="color: ${theme.text.focus}; font-weight: bold">${text}</span>`;
+    return HELP_SECTIONS.map(({ title, items }, i) => {
+      const rows = items.map(({ text, status }) =>
+        text.replace(/\[(.+?:)\]/g, (_m, keyword) => accent(keyword)) + (status ? ` — ${accent(status())}` : '')
+      ).join('<br>');
+      const heading = `<div style="margin: ${i ? 10 : 0}px 0 4px; border-bottom: 1px solid ${theme.borderColor}">${accent(title)}</div>`;
+      return heading + rows;
+    }).join('');
+  }
+
   // Shown while Ctrl is held and the cursor is over the input
   function setupHelpPopup() {
     let popup = null;
@@ -777,8 +802,7 @@
         popup.className = 'kg-help-popup';
         document.body.appendChild(popup);
       }
-      popup.innerHTML = HELP_TEXT.replace(/\[(.+?:)\]/g, (_m, keyword) =>
-        `<span style="color: ${theme.text.focus}; font-weight: bold">${keyword}</span>`);
+      popup.innerHTML = renderHelp(theme);
       Object.assign(popup.style, {
         position: 'absolute',
         zIndex: 2010,
