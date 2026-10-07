@@ -305,7 +305,7 @@
   function getVisibleText(node) {
     if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
     if (node.nodeType !== Node.ELEMENT_NODE || node.style.display === 'none') return '';
-    return Array.from(node.childNodes, child => getVisibleText(child)).join('');
+    return [...node.childNodes].map(getVisibleText).join('');
   }
 
   function getCommonPrefixLength(a, b) {
@@ -873,6 +873,10 @@
   // Styles of both modes. Colors fall back to neutral ones outside the floating theme.
   function getBaseCss() {
     return `
+      #fixtypo {
+        display: none !important;
+      }
+
       #${PROGRESS_BAR_ID} {
         height: 3px !important;
         margin: 8px 0 0 !important;
@@ -989,7 +993,6 @@
 
       #main-block .handle,
       #report,
-      #fixtypo,
       #entertip,
       #param_keyboard {
         display: none !important;
