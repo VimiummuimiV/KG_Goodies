@@ -63,6 +63,12 @@
         after: 'hsl(200, 10%, 70%)',
         error: 'hsl(0, 85%, 70%)'
       },
+      help: {
+        heading: 'hsl(40, 80%, 70%)',
+        on: 'hsl(140, 80%, 60%)',
+        off: 'hsl(0, 85%, 65%)',
+        value: 'hsl(200, 70%, 70%)'
+      },
       input: {
         normal: createInputState('hsl(120, 15%, 25%)', 'hsl(120, 15%, 75%)'),
         disabled: createInputState(disabledDark, disabledDark),
@@ -77,6 +83,12 @@
         focus: 'hsl(150, 30%, 30%)',
         after: 'hsl(200, 15%, 40%)',
         error: 'hsl(350, 80%, 45%)'
+      },
+      help: {
+        heading: 'hsl(30, 80%, 35%)',
+        on: 'hsl(140, 70%, 30%)',
+        off: 'hsl(0, 75%, 45%)',
+        value: 'hsl(210, 70%, 40%)'
       },
       input: {
         normal: createInputState('hsl(150, 30%, 70%)', 'hsl(150, 30%, 20%)'),
@@ -741,18 +753,18 @@
 
   // ─── Help popup (both modes) ─────────────────────────────────────────────────
 
-  // Hotkeys show the current state of their setting
+  // Hotkeys show the current state: boolean is drawn as on/off, string as a plain value
   const HELP_SECTIONS = [
     {
       title: 'Горячие клавиши',
       items: [
-        { text: '[Плавающий режим:] (Alt + W) вход/выход.', status: () => onOff(isFloatingMode) },
+        { text: '[Плавающий режим:] (Alt + W) вход/выход.', status: () => isFloatingMode },
         { text: '[Выход:] (ESC) в плавающем режиме.' },
-        { text: '[Автовход:] (Alt + A) в плавающий режим.', status: () => onOff(getSetting('autoEnterFloating')) },
+        { text: '[Автовход:] (Alt + A) в плавающий режим.', status: () => getSetting('autoEnterFloating') },
         { text: '[Тема:] (Alt + T).', status: () => THEME_NAMES[currentTheme] },
         { text: '[Режим отображения текста:] (Alt + L).', status: () => isPartialMode() ? 'построчно' : 'полностью' },
-        { text: '[Выравнивание ввода:] (Alt + Q) + строка ввода в фокусе.', status: () => onOff(getSetting('alignInputWithFocus')) },
-        { text: '[Прогресс-бар:] (Alt + P) (виден, только пока текст обрезан).', status: () => onOff(getSetting('showProgress')) },
+        { text: '[Выравнивание ввода:] (Alt + Q) + строка ввода в фокусе.', status: () => getSetting('alignInputWithFocus') },
+        { text: '[Прогресс-бар:] (Alt + P) (виден, только пока текст обрезан).', status: () => getSetting('showProgress') },
         { text: '[Следующая игра:] (Ctrl + Enter) если (Ожидание/Гонка).' }
       ]
     },
@@ -773,12 +785,16 @@
   ];
 
   function renderHelp(theme) {
-    const accent = (text) => `<span style="color: ${theme.text.focus}; font-weight: bold">${text}</span>`;
+    const { help } = theme;
+    const colored = (text, color) => `<span style="color: ${color}; font-weight: bold">${text}</span>`;
+    const renderStatus = (value) => typeof value === 'boolean'
+      ? colored(onOff(value), value ? help.on : help.off)
+      : colored(value, help.value);
     return HELP_SECTIONS.map(({ title, items }, i) => {
       const rows = items.map(({ text, status }) =>
-        text.replace(/\[(.+?:)\]/g, (_m, keyword) => accent(keyword)) + (status ? ` — ${accent(status())}` : '')
+        text.replace(/\[(.+?:)\]/g, (_m, keyword) => colored(keyword, theme.text.focus)) + (status ? ` — ${renderStatus(status())}` : '')
       ).join('<br>');
-      const heading = `<div style="margin: ${i ? 10 : 0}px 0 4px; border-bottom: 1px solid ${theme.borderColor}">${accent(title)}</div>`;
+      const heading = `<div style="margin: ${i ? 10 : 0}px 0 4px; border-bottom: 1px solid ${theme.borderColor}">${colored(title, help.heading)}</div>`;
       return heading + rows;
     }).join('');
   }
