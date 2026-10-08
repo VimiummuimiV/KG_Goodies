@@ -1221,6 +1221,14 @@
     `;
   }
 
+  // Light theme only, and only once the backdrop is dark enough to make the block glare
+  function getElementsBrightness() {
+    if (!isFloatingMode || currentTheme !== 'light' || !settings) return 'none';
+    const dimmingLevel = getSetting('dimmingLevel');
+    const elementsDimming = clamp((dimmingLevel - DIMMING_ELEMENTS_THRESHOLD) / (100 - DIMMING_ELEMENTS_THRESHOLD), 0, 1);
+    return `brightness(${(1 - DIMMING_ELEMENTS_STRENGTH * elementsDimming).toFixed(2)})`;
+  }
+
   function getHelpCss() {
     const theme = themes[currentTheme || defaultSettings.theme];
     return `
@@ -1240,6 +1248,7 @@
         width: max-content !important;
         min-width: min(280px, calc(100vw - ${HELP_MARGIN * 2}px)) !important;
         max-width: calc(100vw - ${HELP_MARGIN * 2}px) !important;
+        filter: ${getElementsBrightness()} !important;
       }
 
       .kg-help-popup.kg-help-pinned {
@@ -1285,8 +1294,6 @@
     const theme = themes[currentTheme];
     const isDark = currentTheme === 'dark';
     const dimmingLevel = getSetting('dimmingLevel');
-    const elementsDimming = clamp((dimmingLevel - DIMMING_ELEMENTS_THRESHOLD) / (100 - DIMMING_ELEMENTS_THRESHOLD), 0, 1);
-    const elementsBrightness = (1 - DIMMING_ELEMENTS_STRENGTH * elementsDimming).toFixed(2);
     return `
       #kg-dimming-background {
         position: fixed !important;
@@ -1309,7 +1316,7 @@
         z-index: 2000 !important;
         pointer-events: auto !important;
         min-width: 566px !important;
-        filter: ${isDark ? 'none' : `brightness(${elementsBrightness})`} !important;
+        filter: ${getElementsBrightness()} !important;
       }
 
       #typeblock {
