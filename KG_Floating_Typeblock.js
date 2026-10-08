@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KG_Floating_Typeblock
 // @namespace    http://tampermonkey.net/
-// @version      1.2.3
+// @version      1.2.4
 // @description  Floating dimmed typing block for Klavogonki: adjustable size, position and font, light/dark themes, line-by-line text view and a typing progress bar.
 // @author       Patcher
 // @match        *://klavogonki.ru/g/?gmid=*
