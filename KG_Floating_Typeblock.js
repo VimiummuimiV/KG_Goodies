@@ -973,10 +973,19 @@
     closeButton.style.setProperty('--kg-close-hover-color', background);
   }
 
+  // Measure away from the right edge: fit-content would otherwise shrink into the leftover gap
+  function measureHelpPanel() {
+    const popup = helpPanel.popup;
+    const previousLeft = popup.style.left;
+    popup.style.left = HELP_MARGIN + 'px';
+    const size = { width: popup.offsetWidth, height: popup.offsetHeight };
+    popup.style.left = previousLeft;
+    return size;
+  }
+
   // Intended position stays put; only the drawn point is clamped into the viewport
   function clampHelpPoint(left, top) {
-    const width = helpPanel.popup.offsetWidth;
-    const height = helpPanel.popup.offsetHeight;
+    const { width, height } = measureHelpPanel();
     return {
       left: clamp(left, HELP_MARGIN, Math.max(HELP_MARGIN, window.innerWidth - width - HELP_MARGIN)),
       top: clamp(top, HELP_MARGIN, Math.max(HELP_MARGIN, window.innerHeight - height - HELP_MARGIN))
@@ -993,11 +1002,12 @@
   function placeNearInput(popup) {
     const input = document.getElementById('inputtext');
     const rect = input?.getBoundingClientRect();
+    const { width, height } = measureHelpPanel();
     let top = rect ? rect.bottom + HELP_MARGIN : HELP_MARGIN;
-    if (top + popup.offsetHeight > window.innerHeight) {
-      top = (rect ? rect.top : window.innerHeight) - popup.offsetHeight - HELP_MARGIN;
+    if (top + height > window.innerHeight) {
+      top = (rect ? rect.top : window.innerHeight) - height - HELP_MARGIN;
     }
-    const left = rect ? rect.left : (window.innerWidth - popup.offsetWidth) / 2;
+    const left = rect ? rect.left : (window.innerWidth - width) / 2;
     const point = clampHelpPoint(left, top);
     popup.style.left = point.left + 'px';
     popup.style.top = point.top + 'px';
@@ -1159,8 +1169,8 @@
         font-family: Tahoma, Arial, sans-serif !important;
         white-space: pre-line !important;
         user-select: none !important;
-        width: fit-content !important;
-        max-width: 90vw !important;
+        width: max-content !important;
+        max-width: calc(100vw - ${HELP_MARGIN * 2}px) !important;
       }
 
       .kg-help-popup.kg-help-pinned {
