@@ -25,7 +25,6 @@
   const DIMMING_SENSITIVITY = 0.5;
   const INPUT_PADDING = 8;
   const TOAST_DURATION = 1500;
-  const BOX_SHADOW = '0 0 5px rgba(0,0,0,0.4)';
 
   const defaultSettings = {
     // false: floating mode is entered manually only (Alt + W or double click on the input)
@@ -645,7 +644,6 @@
       stroke: text
     });
     span.style.setProperty('border-radius', '0.2em', 'important');
-    span.style.setProperty('box-shadow', BOX_SHADOW, 'important');
   }
 
   function syncIndicator({ id, title, icon, isActive }) {
@@ -822,7 +820,6 @@
         color: theme.input.normal.text,
         cursor: 'pointer'
       });
-      btn.style.setProperty('box-shadow', BOX_SHADOW, 'important');
       btn.style.setProperty('border', `2px solid ${theme.borderColor}`, 'important');
       btn.style.setProperty('border-radius', '0.4em', 'important');
       btn.onmousedown = ev => ev.stopPropagation();
@@ -922,7 +919,6 @@
         background: theme.background,
         color: theme.text.after,
         border: `2px solid ${theme.borderColor}`,
-        boxShadow: BOX_SHADOW,
         padding: '12px 18px',
         fontSize: '15px',
         fontFamily: 'Tahoma, Arial, sans-serif',
@@ -1022,7 +1018,6 @@
         border: 2px solid ${theme.borderColor} !important;
         border-radius: 18px !important;
         background-color: ${theme.background} !important;
-        box-shadow: ${BOX_SHADOW} !important;
       }
 
       #typeblock .rc {
@@ -1080,7 +1075,6 @@
         border: 2px solid ${theme.borderColor} !important;
         border-radius: 999px !important;
         background-color: ${theme.background} !important;
-        box-shadow: ${BOX_SHADOW} !important;
         font-family: Tahoma, Arial, sans-serif !important;
         white-space: nowrap !important;
         user-select: none !important;
