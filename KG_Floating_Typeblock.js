@@ -23,7 +23,10 @@
   const PROGRESS_BAR_ID = 'kg-progress-bar';
   const FONT_SIZE = { min: 12, max: 48, step: 2 };
   const DIMMING_SENSITIVITY = 0.5;
-  // Share of brightness the light theme loses at full dimming, so it does not glare on a dark backdrop
+  // The light theme starts to lose brightness only when the backdrop dimming (%) passes this level,
+  // i.e. when the bright block really starts to glare on the dark backdrop
+  const DIMMING_ELEMENTS_THRESHOLD = 70;
+  // Share of brightness the light theme loses on a fully black backdrop
   const DIMMING_ELEMENTS_STRENGTH = 0.25;
   const INPUT_PADDING = 8;
   const TOAST_DURATION = 1500;
@@ -1005,7 +1008,9 @@
   function getFloatingCss(inputTransition) {
     const theme = themes[currentTheme];
     const isDark = currentTheme === 'dark';
-    const elementsBrightness = (1 - DIMMING_ELEMENTS_STRENGTH * getSetting('dimmingLevel') / 100).toFixed(2);
+    const dimmingLevel = getSetting('dimmingLevel');
+    const elementsDimming = clamp((dimmingLevel - DIMMING_ELEMENTS_THRESHOLD) / (100 - DIMMING_ELEMENTS_THRESHOLD), 0, 1);
+    const elementsBrightness = (1 - DIMMING_ELEMENTS_STRENGTH * elementsDimming).toFixed(2);
     return `
       #kg-dimming-background {
         position: fixed !important;
@@ -1013,7 +1018,7 @@
         left: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
-        background-color: rgba(0, 0, 0, ${getSetting('dimmingLevel') / 100}) !important;
+        background-color: rgba(0, 0, 0, ${dimmingLevel / 100}) !important;
         z-index: 1999 !important;
         cursor: ns-resize !important;
         user-select: none !important;
