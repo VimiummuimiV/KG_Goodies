@@ -920,7 +920,6 @@
     }).join('');
   }
 
-  // Ctrl+hover previews the panel and hides it again. Alt+H pins it until the close button.
   const HELP_MARGIN = 8;
 
   function readHelpPanelState() {
@@ -940,37 +939,47 @@
     }));
   }
 
-  function ensureHelpPopup() {
-    if (helpPanel.popup) return helpPanel.popup;
-    const closeButton = createElement('button', {
+  function createHelpAction(className, title, icon, onClick) {
+    const button = createElement('button', {
       type: 'button',
-      className: 'kg-help-close',
-      title: 'Закрыть',
-      innerHTML: svgIcon(`
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>`)
+      className: `kg-help-action ${className}`,
+      title,
+      innerHTML: svgIcon(icon)
     });
-    closeButton.addEventListener('mousedown', (event) => event.stopPropagation());
-    closeButton.addEventListener('click', (event) => {
+    button.addEventListener('mousedown', (event) => event.stopPropagation());
+    button.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      closePinnedHelp();
+      onClick();
     });
+    return button;
+  }
+
+  function ensureHelpPopup() {
+    if (helpPanel.popup) return helpPanel.popup;
+    const actions = createElement('div', { className: 'kg-help-actions' },
+      createHelpAction('kg-help-reset', 'Сбросить положение', `
+        <polyline points="1 4 1 10 7 10"></polyline>
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>`, resetHelpPosition),
+      createHelpAction('kg-help-close', 'Закрыть', `
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>`, closePinnedHelp));
     helpPanel.popup = createElement('div', { className: 'kg-help-popup', hidden: true },
-      closeButton,
+      actions,
       createElement('div', { className: 'kg-help-content' }));
     document.body.appendChild(helpPanel.popup);
     setupHelpDrag(helpPanel.popup);
     return helpPanel.popup;
   }
 
-  function applyCloseButtonStyles() {
-    const closeButton = helpPanel.popup?.querySelector('.kg-help-close');
-    if (!closeButton || !currentTheme) return;
-    applyIndicatorBaseStyles(closeButton);
+  function applyHelpActionStyles() {
+    if (!helpPanel.popup || !currentTheme) return;
     const { background, text } = themes[currentTheme].input.normal;
-    closeButton.style.setProperty('--kg-close-hover-bg', text);
-    closeButton.style.setProperty('--kg-close-hover-color', background);
+    helpPanel.popup.querySelectorAll('.kg-help-action').forEach(button => {
+      applyIndicatorBaseStyles(button);
+      button.style.setProperty('--kg-action-hover-bg', text);
+      button.style.setProperty('--kg-action-hover-color', background);
+    });
   }
 
   // Measure away from the right edge: fit-content would otherwise shrink into the leftover gap
@@ -1017,7 +1026,7 @@
   function renderHelpPanel() {
     if (!helpPanel.popup || helpPanel.popup.hidden || !currentTheme) return;
     helpPanel.popup.querySelector('.kg-help-content').innerHTML = renderHelp(themes[currentTheme]);
-    applyCloseButtonStyles();
+    applyHelpActionStyles();
     if (helpPanel.pinned) applyHelpPosition();
   }
 
@@ -1043,6 +1052,17 @@
   function hideTransientHelp() {
     if (helpPanel.pinned || !helpPanel.popup || helpPanel.popup.hidden) return;
     helpPanel.popup.hidden = true;
+  }
+
+  function resetHelpPosition() {
+    if (!helpPanel.popup) return;
+    helpPanel.position = placeNearInput(helpPanel.popup);
+    saveHelpPanelState();
+  }
+
+  function toggleHelpPanel() {
+    if (helpPanel.pinned) closePinnedHelp();
+    else pinHelpPanel();
   }
 
   function closePinnedHelp() {
@@ -1079,7 +1099,7 @@
   function setupHelpDrag(popup) {
     let dragStart = null;
     popup.addEventListener('mousedown', (event) => {
-      if (!helpPanel.pinned || event.button !== 0 || event.target.closest('.kg-help-close')) return;
+      if (!helpPanel.pinned || event.button !== 0 || event.target.closest('.kg-help-actions')) return;
       dragStart = {
         x: event.clientX,
         y: event.clientY,
@@ -1170,11 +1190,11 @@
         white-space: pre-line !important;
         user-select: none !important;
         width: max-content !important;
+        min-width: min(280px, calc(100vw - ${HELP_MARGIN * 2}px)) !important;
         max-width: calc(100vw - ${HELP_MARGIN * 2}px) !important;
       }
 
       .kg-help-popup.kg-help-pinned {
-        padding-right: 44px !important;
         cursor: move !important;
       }
 
@@ -1182,11 +1202,18 @@
         display: none !important;
       }
 
-      .kg-help-popup .kg-help-close {
+      .kg-help-actions {
         display: none !important;
-        position: absolute !important;
-        top: 8px !important;
-        right: 8px !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+        margin: 0 0 8px !important;
+      }
+
+      .kg-help-popup.kg-help-pinned .kg-help-actions {
+        display: flex !important;
+      }
+
+      .kg-help-popup .kg-help-action {
         padding: 0 !important;
         margin: 0 !important;
         border: none !important;
@@ -1194,14 +1221,10 @@
         line-height: 0 !important;
       }
 
-      .kg-help-popup.kg-help-pinned .kg-help-close {
-        display: flex !important;
-      }
-
-      .kg-help-popup .kg-help-close:hover {
-        background-color: var(--kg-close-hover-bg) !important;
-        color: var(--kg-close-hover-color) !important;
-        stroke: var(--kg-close-hover-color) !important;
+      .kg-help-popup .kg-help-action:hover {
+        background-color: var(--kg-action-hover-bg) !important;
+        color: var(--kg-action-hover-color) !important;
+        stroke: var(--kg-action-hover-color) !important;
       }
     `;
   }
@@ -1502,7 +1525,7 @@
     KeyA: { action: toggleAutoEnterFloating },
     KeyL: { action: toggleTextVisibilityMode },
     KeyP: { action: toggleProgressBar },
-    KeyH: { action: pinHelpPanel },
+    KeyH: { action: toggleHelpPanel },
     KeyS: { action: toggleStats, floatingOnly: true },
     KeyT: { action: toggleTheme, floatingOnly: true },
     KeyQ: { action: toggleInputAlignment, floatingOnly: true }
