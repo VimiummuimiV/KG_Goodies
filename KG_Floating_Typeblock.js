@@ -37,6 +37,7 @@
     alignInputWithFocus: true,
     isPartialMode: false,
     showProgress: true,
+    showStats: true,
     theme: 'dark'
   };
 
@@ -362,6 +363,79 @@
     updateIndicators();
   }
 
+  // ─── Race stats (floating) ─────────────────────────────────────────────────
+
+  // The site status panel is covered by the dimming, so speed and errors are redrawn above the block
+  const STATS_ID = 'kg-stats';
+  const SPEED_SCALE = { maxSpeed: 1000, hueRange: 130 };
+  const ERRORS_HIT_ANIMATION = [{ transform: 'scale(1.3)', filter: 'brightness(1.6)' }, { transform: 'scale(1)', filter: 'none' }];
+  const ERRORS_HIT_DURATION = 350;
+
+  const STATS_MARKUP = `
+    <div class="kg-speed">
+      <div class="kg-speed-readout">
+        <span class="kg-speed-value">0</span><span class="kg-speed-unit">зн/мин</span>
+      </div>
+      <div class="kg-speed-bar"><div class="kg-speed-fill"></div></div>
+    </div>
+    <div class="kg-errors">
+      <span class="kg-errors-value">0</span><span class="kg-errors-label">ошибки</span>
+    </div>`;
+
+  function ensureStatsElement() {
+    let stats = document.getElementById(STATS_ID);
+    if (stats) return stats;
+    const mainBlock = document.getElementById('main-block');
+    if (!mainBlock) return null;
+    stats = document.createElement('div');
+    stats.id = STATS_ID;
+    stats.innerHTML = STATS_MARKUP;
+    mainBlock.prepend(stats);
+    return stats;
+  }
+
+  const removeStats = () => document.getElementById(STATS_ID)?.remove();
+
+  const readNumber = (id) => Number.parseInt(document.getElementById(id)?.textContent, 10) || 0;
+
+  // The text is assigned only when changed: the observer of the page reacts to every DOM change
+  function setText(element, value) {
+    const text = String(value);
+    if (element.textContent === text) return false;
+    element.textContent = text;
+    return true;
+  }
+
+  function updateStats() {
+    if (!getSetting('showStats')) {
+      removeStats();
+      return;
+    }
+    const stats = ensureStatsElement();
+    if (!stats) return;
+
+    const speed = readNumber('speed-label');
+    const errors = readNumber('errors-label');
+    const ratio = clamp(speed / SPEED_SCALE.maxSpeed, 0, 1);
+    stats.style.setProperty('--kg-speed-ratio', ratio);
+    stats.style.setProperty('--kg-speed-hue', Math.round((1 - ratio) * SPEED_SCALE.hueRange));
+    setText(stats.querySelector('.kg-speed-value'), speed);
+
+    const errorsBox = stats.querySelector('.kg-errors');
+    const errorsValue = errorsBox.querySelector('.kg-errors-value');
+    const previousErrors = Number(errorsValue.textContent);
+    if (setText(errorsValue, errors) && errors > previousErrors) {
+      errorsBox.animate(ERRORS_HIT_ANIMATION, ERRORS_HIT_DURATION);
+    }
+    errorsBox.classList.toggle('kg-errors-active', errors > 0);
+  }
+
+  function toggleStats() {
+    toggleSetting('showStats', 'Скорость и ошибки');
+    updateStats();
+    updateIndicators();
+  }
+
   // ─── Auto enter ────────────────────────────────────────────────────────────
 
   function toggleAutoEnterFloating() {
@@ -503,6 +577,13 @@
       isActive: () => isFloatingMode && getSetting('alignInputWithFocus'),
       icon: svgIcon(`
         <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>`)
+    },
+    {
+      id: 'kg-stats-indicator',
+      title: 'Скорость и ошибки',
+      isActive: () => isFloatingMode && getSetting('showStats'),
+      icon: svgIcon(`
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>`)
     },
     {
       id: 'kg-progress-indicator',
@@ -767,6 +848,7 @@
         { text: '[Режим отображения текста:] (Alt + L).', status: () => isPartialMode() ? 'построчно' : 'полностью' },
         { text: '[Выравнивание ввода:] (Alt + Q) + в плавающем режиме.', status: () => getSetting('alignInputWithFocus') },
         { text: '[Прогресс-бар:] (Alt + P) (виден, только пока текст обрезан).', status: () => getSetting('showProgress') },
+        { text: '[Скорость и ошибки:] (Alt + S) над блоком в плавающем режиме.', status: () => getSetting('showStats') },
         { text: '[Следующая игра:] (Ctrl + Enter) если (Ожидание/Гонка).' }
       ]
     },
@@ -972,6 +1054,93 @@
         --kg-progress-fill: ${theme.text.focus};
       }
 
+      #${STATS_ID} {
+        position: absolute !important;
+        bottom: 100% !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        margin-bottom: 8px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 14px !important;
+        padding: 6px 18px !important;
+        border: 2px solid ${theme.borderColor} !important;
+        border-radius: 999px !important;
+        background-color: ${theme.background} !important;
+        box-shadow: 0 0 5px rgba(0,0,0,0.4) !important;
+        font-family: Tahoma, Arial, sans-serif !important;
+        white-space: nowrap !important;
+        user-select: none !important;
+        --kg-speed-lightness: ${isDark ? '65%' : '40%'};
+        color: hsl(var(--kg-speed-hue, 130) 70% var(--kg-speed-lightness)) !important;
+        transition: color 0.25s !important;
+      }
+
+      #${STATS_ID} .kg-speed {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      #${STATS_ID} .kg-speed-readout,
+      #${STATS_ID} .kg-errors {
+        display: flex;
+        align-items: baseline;
+        gap: 5px;
+      }
+
+      #${STATS_ID} .kg-speed-value,
+      #${STATS_ID} .kg-errors-value {
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #${STATS_ID} .kg-speed-value {
+        min-width: 3ch;
+        text-align: right;
+        text-shadow: 0 0 8px currentColor;
+      }
+
+      #${STATS_ID} .kg-speed-unit,
+      #${STATS_ID} .kg-errors-label {
+        font-size: 12px;
+        color: ${theme.text.after};
+      }
+
+      #${STATS_ID} .kg-speed-bar {
+        width: 128px;
+        height: 4px;
+        background-color: ${theme.borderColor};
+        overflow: hidden;
+        -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);
+        mask-image: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);
+      }
+
+      #${STATS_ID} .kg-speed-fill {
+        height: 100%;
+        background-color: currentColor;
+        transform-origin: left center;
+        transform: scaleX(var(--kg-speed-ratio, 0));
+        transition: transform 0.25s ease-out;
+      }
+
+      #${STATS_ID} .kg-errors {
+        padding-left: 14px;
+        border-left: 2px solid ${theme.borderColor};
+        color: ${theme.text.after};
+      }
+
+      #${STATS_ID} .kg-errors-value {
+        transition: color 0.2s;
+      }
+
+      #${STATS_ID} .kg-errors-active .kg-errors-value {
+        color: ${theme.text.error};
+        text-shadow: 0 0 8px currentColor;
+      }
+
       #inputtextblock {
         display: flex !important;
         justify-content: flex-start !important;
@@ -1071,6 +1240,7 @@
     dimmingBg?.remove();
     dimmingBg = null;
     document.getElementById('kg-fontsize-indicator')?.remove();
+    removeStats();
     resetStyles();
     isFloatingMode = false;
     updateStyles();
@@ -1086,6 +1256,7 @@
     if (isFloatingMode) {
       applyFontSize();
       alignInputWithTypeFocus();
+      updateStats();
     }
     refreshTextView();
   }
@@ -1098,6 +1269,7 @@
     KeyA: { action: toggleAutoEnterFloating },
     KeyL: { action: toggleTextVisibilityMode },
     KeyP: { action: toggleProgressBar },
+    KeyS: { action: toggleStats, floatingOnly: true },
     KeyT: { action: toggleTheme, floatingOnly: true },
     KeyQ: { action: toggleInputAlignment, floatingOnly: true }
   };
