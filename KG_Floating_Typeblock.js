@@ -58,6 +58,8 @@
     dark: {
       background: 'hsl(0, 0%, 15%)',
       borderColor: 'hsl(0, 0%, 20%)',
+      shadow: '0 1px 3px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.35)',
+      shadowSmall: '0 1px 2px rgba(0,0,0,0.5), 0 3px 8px rgba(0,0,0,0.3)',
       text: {
         before: 'hsl(200, 10%, 40%)',
         focus: 'hsl(120, 70%, 70%)',
@@ -79,6 +81,8 @@
     light: {
       background: 'hsl(0, 0%, 95%)',
       borderColor: 'hsl(0, 0%, 70%)',
+      shadow: '0 1px 3px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.2)',
+      shadowSmall: '0 1px 2px rgba(0,0,0,0.3), 0 3px 8px rgba(0,0,0,0.2)',
       text: {
         before: 'hsl(200, 15%, 70%)',
         focus: 'hsl(150, 30%, 30%)',
@@ -649,6 +653,7 @@
       stroke: text
     });
     span.style.setProperty('border-radius', '0.2em', 'important');
+    span.style.setProperty('box-shadow', themes[currentTheme].shadowSmall, 'important');
   }
 
   function syncIndicator({ id, title, icon, isActive }) {
@@ -827,6 +832,7 @@
       });
       btn.style.setProperty('border', `2px solid ${theme.borderColor}`, 'important');
       btn.style.setProperty('border-radius', '0.4em', 'important');
+      btn.style.setProperty('box-shadow', theme.shadowSmall, 'important');
       btn.onmousedown = ev => ev.stopPropagation();
       btn.onclick = (ev) => {
         ev.preventDefault();
@@ -924,6 +930,7 @@
         background: theme.background,
         color: theme.text.after,
         border: `2px solid ${theme.borderColor}`,
+        boxShadow: theme.shadow,
         padding: '12px 18px',
         fontSize: '15px',
         fontFamily: 'Tahoma, Arial, sans-serif',
@@ -1022,6 +1029,7 @@
         width: 100% !important;
         border-radius: 18px !important;
         background-color: ${theme.background} !important;
+        box-shadow: ${theme.shadow} !important;
       }
 
       #typeblock .rc {
@@ -1079,6 +1087,7 @@
         border: 2px solid ${theme.borderColor} !important;
         border-radius: 999px !important;
         background-color: ${theme.background} !important;
+        box-shadow: ${theme.shadow} !important;
         font-family: Tahoma, Arial, sans-serif !important;
         white-space: nowrap !important;
         user-select: none !important;
