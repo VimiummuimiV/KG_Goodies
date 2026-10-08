@@ -23,6 +23,8 @@
   const PROGRESS_BAR_ID = 'kg-progress-bar';
   const FONT_SIZE = { min: 12, max: 48, step: 2 };
   const DIMMING_SENSITIVITY = 0.5;
+  // Share of brightness the light theme loses at full dimming, so it does not glare on a dark backdrop
+  const DIMMING_ELEMENTS_STRENGTH = 0.25;
   const INPUT_PADDING = 8;
   const TOAST_DURATION = 1500;
 
@@ -58,6 +60,7 @@
     dark: {
       background: 'hsl(0, 0%, 15%)',
       borderColor: 'hsl(0, 0%, 20%)',
+      // Two-layer drop shadow: the surface looks lifted
       shadow: '0 1px 3px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.35)',
       shadowSmall: '0 1px 2px rgba(0,0,0,0.5), 0 3px 8px rgba(0,0,0,0.3)',
       text: {
@@ -1002,6 +1005,7 @@
   function getFloatingCss(inputTransition) {
     const theme = themes[currentTheme];
     const isDark = currentTheme === 'dark';
+    const elementsBrightness = (1 - DIMMING_ELEMENTS_STRENGTH * getSetting('dimmingLevel') / 100).toFixed(2);
     return `
       #kg-dimming-background {
         position: fixed !important;
@@ -1024,6 +1028,7 @@
         z-index: 2000 !important;
         pointer-events: auto !important;
         min-width: 566px !important;
+        filter: ${isDark ? 'none' : `brightness(${elementsBrightness})`} !important;
       }
 
       #typeblock {
@@ -1158,7 +1163,6 @@
 
       #${STATS_ID} .kg-errors-active .kg-errors-value {
         color: ${theme.text.error};
-        text-shadow: 0 0 8px currentColor;
       }
 
       #inputtextblock {
