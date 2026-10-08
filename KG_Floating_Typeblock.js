@@ -765,7 +765,7 @@
         { text: '[Автовход:] (Alt + A) в плавающий режим.', status: () => getSetting('autoEnterFloating') },
         { text: '[Тема:] (Alt + T).', status: () => THEME_NAMES[currentTheme] },
         { text: '[Режим отображения текста:] (Alt + L).', status: () => isPartialMode() ? 'построчно' : 'полностью' },
-        { text: '[Выравнивание ввода:] (Alt + Q) + строка ввода в фокусе.', status: () => getSetting('alignInputWithFocus') },
+        { text: '[Выравнивание ввода:] (Alt + Q) + в плавающем режиме.', status: () => getSetting('alignInputWithFocus') },
         { text: '[Прогресс-бар:] (Alt + P) (виден, только пока текст обрезан).', status: () => getSetting('showProgress') },
         { text: '[Следующая игра:] (Ctrl + Enter) если (Ожидание/Гонка).' }
       ]
