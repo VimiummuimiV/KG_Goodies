@@ -1556,7 +1556,11 @@
     renderHelpPanel();
   }
 
-  const toggleFloatingMode = () => isFloatingMode ? exitFloatingMode() : enterFloatingMode();
+  function toggleFloatingMode() {
+    if (isFloatingMode) exitFloatingMode();
+    else enterFloatingMode();
+    showToast(formatToggle('Плавающий режим', isFloatingMode));
+  }
 
   function handleContentChanges() {
     if (!settings) return;
