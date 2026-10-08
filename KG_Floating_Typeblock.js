@@ -125,7 +125,8 @@
   const helpPanel = {
     popup: null,
     pinned: false,
-    position: null
+    position: null,
+    anchor: null
   };
 
   // ─── Utils ─────────────────────────────────────────────────────────────────
@@ -808,6 +809,7 @@
       setSetting('mainBlockPosition', Math.round(newTop * 10) / 10);
       updateStyles();
       refreshTextView();
+      syncHelpAnchor();
     }, () => ({
       startWidth: getSetting('mainBlockWidth'),
       startTop: getSetting('mainBlockPosition'),
@@ -980,6 +982,7 @@
       button.style.setProperty('--kg-action-hover-bg', text);
       button.style.setProperty('--kg-action-hover-color', background);
     });
+    syncResetButton();
   }
 
   // Measure away from the right edge: fit-content would otherwise shrink into the leftover gap
@@ -1008,7 +1011,7 @@
     helpPanel.popup.style.top = point.top + 'px';
   }
 
-  function placeNearInput(popup) {
+  function getDefaultHelpPoint() {
     const input = document.getElementById('inputtext');
     const rect = input?.getBoundingClientRect();
     const { width, height } = measureHelpPanel();
@@ -1017,10 +1020,49 @@
       top = (rect ? rect.top : window.innerHeight) - height - HELP_MARGIN;
     }
     const left = rect ? rect.left : (window.innerWidth - width) / 2;
-    const point = clampHelpPoint(left, top);
+    return clampHelpPoint(left, top);
+  }
+
+  function placeNearInput(popup) {
+    const point = getDefaultHelpPoint();
     popup.style.left = point.left + 'px';
     popup.style.top = point.top + 'px';
     return point;
+  }
+
+  function readHelpAnchor() {
+    const input = document.getElementById('inputtext');
+    if (!input || !input.getClientRects().length) return null;
+    const rect = input.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+  }
+
+  function isSameHelpAnchor(next) {
+    const anchor = helpPanel.anchor;
+    if (!anchor || !next) return anchor === next;
+    return Math.abs(anchor.left - next.left) < 1 && Math.abs(anchor.top - next.top) < 1
+      && Math.abs(anchor.width - next.width) < 1 && Math.abs(anchor.height - next.height) < 1;
+  }
+
+  // The input can move or leave the DOM. Missing input must not flip the button.
+  function syncHelpAnchor() {
+    const next = readHelpAnchor();
+    if (isSameHelpAnchor(next)) return;
+    helpPanel.anchor = next;
+    if (next) syncResetButton();
+  }
+
+  function isHelpAtDefaultPosition() {
+    if (!helpPanel.position || !readHelpAnchor()) return true;
+    const point = getDefaultHelpPoint();
+    return Math.abs(point.left - helpPanel.position.left) < 1
+      && Math.abs(point.top - helpPanel.position.top) < 1;
+  }
+
+  function syncResetButton() {
+    const button = helpPanel.popup?.querySelector('.kg-help-reset');
+    if (!button || !readHelpAnchor()) return;
+    button.hidden = isHelpAtDefaultPosition();
   }
 
   function renderHelpPanel() {
@@ -1058,6 +1100,7 @@
     if (!helpPanel.popup) return;
     helpPanel.position = placeNearInput(helpPanel.popup);
     saveHelpPanelState();
+    syncResetButton();
   }
 
   function toggleHelpPanel() {
@@ -1084,6 +1127,7 @@
       helpPanel.position = { left: popup.offsetLeft, top: popup.offsetTop };
     }
     saveHelpPanelState();
+    syncResetButton();
   }
 
   function restoreHelpPanel() {
@@ -1099,7 +1143,7 @@
   function setupHelpDrag(popup) {
     let dragStart = null;
     popup.addEventListener('mousedown', (event) => {
-      if (!helpPanel.pinned || event.button !== 0 || event.target.closest('.kg-help-actions')) return;
+      if (!helpPanel.pinned || event.button !== 0) return;
       dragStart = {
         x: event.clientX,
         y: event.clientY,
@@ -1122,6 +1166,7 @@
       dragStart = null;
       helpPanel.position = { left: popup.offsetLeft, top: popup.offsetTop };
       saveHelpPanelState();
+      syncResetButton();
     });
   }
 
@@ -1137,7 +1182,10 @@
 
     window.addEventListener('keydown', onModifierChange);
     window.addEventListener('keyup', onModifierChange);
-    window.addEventListener('resize', () => applyHelpPosition());
+    window.addEventListener('resize', () => {
+      applyHelpPosition();
+      syncHelpAnchor();
+    });
     document.addEventListener('mouseover', (event) => {
       if (ctrlDown && event.target === getInput()) showTransientHelp();
     });
@@ -1211,6 +1259,10 @@
 
       .kg-help-popup.kg-help-pinned .kg-help-actions {
         display: flex !important;
+      }
+
+      .kg-help-popup .kg-help-reset[hidden] {
+        display: none !important;
       }
 
       .kg-help-popup .kg-help-action {
@@ -1515,6 +1567,7 @@
       updateStats();
     }
     refreshTextView();
+    syncHelpAnchor();
   }
 
   // ─── Global listeners (always active) ──────────────────────────────────────
