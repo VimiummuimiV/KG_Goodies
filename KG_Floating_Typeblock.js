@@ -549,6 +549,11 @@
     if (inputtext) inputtext.style.fontSize = size + 'px';
   }
 
+  // Inline important beats stylesheet rules, so an external dark-theme script cannot strip the border
+  function applyTypeblockBorder() {
+    document.getElementById('typeblock')?.style.setProperty('border', `2px solid ${themes[currentTheme].borderColor}`, 'important');
+  }
+
   function setFontSize(size) {
     setSetting('fontSize', clamp(size, FONT_SIZE.min, FONT_SIZE.max));
     applyFontSize();
@@ -1015,7 +1020,6 @@
 
       #typeblock {
         width: 100% !important;
-        border: 2px solid ${theme.borderColor} !important;
         border-radius: 18px !important;
         background-color: ${theme.background} !important;
       }
@@ -1261,6 +1265,7 @@
     if (!settings) return;
     if (isFloatingMode) {
       applyFontSize();
+      applyTypeblockBorder();
       alignInputWithTypeFocus();
       updateStats();
     }
