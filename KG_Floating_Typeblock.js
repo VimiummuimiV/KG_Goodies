@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KG_Floating_Typeblock
 // @namespace    http://tampermonkey.net/
-// @version      1.2.4
+// @version      1.2.5
 // @description  Floating dimmed typing block for Klavogonki: adjustable size, position and font, light/dark themes, line-by-line text view and a typing progress bar.
 // @author       Patcher
 // @match        *://klavogonki.ru/g/?gmid=*
@@ -20,6 +20,7 @@
 
   const CUSTOM_SETTINGS_KEY = 'kg-typeblock-custom-settings';
   const DEFAULT_SETTINGS_KEY = 'kg-typeblock-settings';
+  const HELP_PANEL_KEY = 'kg-typeblock-help-panel';
   const PROGRESS_BAR_ID = 'kg-progress-bar';
   const FONT_SIZE = { min: 12, max: 48, step: 2 };
   const DIMMING_SENSITIVITY = 0.5;
@@ -121,6 +122,11 @@
   let inputObserver = null;
   let fontSizeIndicatorTimeout = null;
   let toastTimeout = null;
+  const helpPanel = {
+    popup: null,
+    pinned: false,
+    position: null
+  };
 
   // ─── Utils ─────────────────────────────────────────────────────────────────
 
@@ -255,6 +261,7 @@
   function toggleSetting(key, label) {
     setSetting(key, !getSetting(key));
     showToast(formatToggle(label, getSetting(key)));
+    renderHelpPanel();
   }
 
   const isPartialMode = () => getSetting('isPartialMode');
@@ -504,6 +511,7 @@
     applySettings();
     showFontSizeIndicator(true); // Only update if present
     showToast(`Тема: ${THEME_NAMES[currentTheme]}`);
+    renderHelpPanel();
   }
 
   // ─── Input colors (floating) ───────────────────────────────────────────────
@@ -870,6 +878,7 @@
       title: 'Горячие клавиши',
       items: [
         { text: '[Плавающий режим:] (Alt + W) вход/выход.', status: () => isFloatingMode },
+        { text: '[Помощь:] (Alt + H).' },
         { text: '[Выход:] (ESC) в плавающем режиме.' },
         { text: '[Автовход:] (Alt + A) в плавающий режим.', status: () => getSetting('autoEnterFloating') },
         { text: '[Тема:] (Alt + T).', status: () => THEME_NAMES[currentTheme] },
@@ -904,77 +913,206 @@
       : colored(value, help.value);
     return HELP_SECTIONS.map(({ title, items }, i) => {
       const rows = items.map(({ text, status }) =>
-        text.replace(/\[(.+?:)\]/g, (_m, keyword) => colored(keyword, theme.text.focus)) + (status ? ` — ${renderStatus(status())}` : '')
+        text.replace(/\[(.+?:)\]/g, (_m, keyword) => colored(keyword, help.value)) + (status ? ` — ${renderStatus(status())}` : '')
       ).join('<br>');
       const heading = `<div style="margin: ${i ? 10 : 0}px 0 4px; border-bottom: 1px solid ${theme.borderColor}">${colored(title, help.heading)}</div>`;
       return heading + rows;
     }).join('');
   }
 
-  // Shown while Ctrl is held and the cursor is over the input
+  // Ctrl+hover previews the panel and hides it again. Alt+H pins it until the close button.
+  const HELP_MARGIN = 8;
+
+  function readHelpPanelState() {
+    const saved = readStorage(HELP_PANEL_KEY);
+    return {
+      open: !!saved.open,
+      left: Number(saved.left),
+      top: Number(saved.top)
+    };
+  }
+
+  function saveHelpPanelState() {
+    localStorage.setItem(HELP_PANEL_KEY, JSON.stringify({
+      open: helpPanel.pinned,
+      left: helpPanel.position?.left,
+      top: helpPanel.position?.top
+    }));
+  }
+
+  function ensureHelpPopup() {
+    if (helpPanel.popup) return helpPanel.popup;
+    const closeButton = createElement('button', {
+      type: 'button',
+      className: 'kg-help-close',
+      title: 'Закрыть',
+      innerHTML: svgIcon(`
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>`)
+    });
+    closeButton.addEventListener('mousedown', (event) => event.stopPropagation());
+    closeButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closePinnedHelp();
+    });
+    helpPanel.popup = createElement('div', { className: 'kg-help-popup', hidden: true },
+      closeButton,
+      createElement('div', { className: 'kg-help-content' }));
+    document.body.appendChild(helpPanel.popup);
+    setupHelpDrag(helpPanel.popup);
+    return helpPanel.popup;
+  }
+
+  function applyCloseButtonStyles() {
+    const closeButton = helpPanel.popup?.querySelector('.kg-help-close');
+    if (!closeButton || !currentTheme) return;
+    applyIndicatorBaseStyles(closeButton);
+    const { background, text } = themes[currentTheme].input.normal;
+    closeButton.style.setProperty('--kg-close-hover-bg', text);
+    closeButton.style.setProperty('--kg-close-hover-color', background);
+  }
+
+  // Intended position stays put; only the drawn point is clamped into the viewport
+  function clampHelpPoint(left, top) {
+    const width = helpPanel.popup.offsetWidth;
+    const height = helpPanel.popup.offsetHeight;
+    return {
+      left: clamp(left, HELP_MARGIN, Math.max(HELP_MARGIN, window.innerWidth - width - HELP_MARGIN)),
+      top: clamp(top, HELP_MARGIN, Math.max(HELP_MARGIN, window.innerHeight - height - HELP_MARGIN))
+    };
+  }
+
+  function applyHelpPosition() {
+    if (!helpPanel.pinned || !helpPanel.popup || helpPanel.popup.hidden || !helpPanel.position) return;
+    const point = clampHelpPoint(helpPanel.position.left, helpPanel.position.top);
+    helpPanel.popup.style.left = point.left + 'px';
+    helpPanel.popup.style.top = point.top + 'px';
+  }
+
+  function placeNearInput(popup) {
+    const input = document.getElementById('inputtext');
+    const rect = input?.getBoundingClientRect();
+    let top = rect ? rect.bottom + HELP_MARGIN : HELP_MARGIN;
+    if (top + popup.offsetHeight > window.innerHeight) {
+      top = (rect ? rect.top : window.innerHeight) - popup.offsetHeight - HELP_MARGIN;
+    }
+    const left = rect ? rect.left : (window.innerWidth - popup.offsetWidth) / 2;
+    const point = clampHelpPoint(left, top);
+    popup.style.left = point.left + 'px';
+    popup.style.top = point.top + 'px';
+    return point;
+  }
+
+  function renderHelpPanel() {
+    if (!helpPanel.popup || helpPanel.popup.hidden || !currentTheme) return;
+    helpPanel.popup.querySelector('.kg-help-content').innerHTML = renderHelp(themes[currentTheme]);
+    applyCloseButtonStyles();
+    if (helpPanel.pinned) applyHelpPosition();
+  }
+
+  function showHelpPanel() {
+    if (!settings) return;
+    ensureStyleElement();
+    updateStyles();
+    const popup = ensureHelpPopup();
+    const wasHidden = popup.hidden;
+    popup.hidden = false;
+    popup.classList.toggle('kg-help-pinned', helpPanel.pinned);
+    renderHelpPanel();
+    if (!wasHidden) return;
+    if (helpPanel.pinned && helpPanel.position) applyHelpPosition();
+    else placeNearInput(popup);
+  }
+
+  function showTransientHelp() {
+    if (helpPanel.pinned) return;
+    showHelpPanel();
+  }
+
+  function hideTransientHelp() {
+    if (helpPanel.pinned || !helpPanel.popup || helpPanel.popup.hidden) return;
+    helpPanel.popup.hidden = true;
+  }
+
+  function closePinnedHelp() {
+    helpPanel.pinned = false;
+    if (helpPanel.popup) {
+      helpPanel.popup.hidden = true;
+      helpPanel.popup.classList.remove('kg-help-pinned');
+    }
+    saveHelpPanelState();
+  }
+
+  function pinHelpPanel() {
+    if (!settings) return;
+    const popup = ensureHelpPopup();
+    const adoptCurrent = !helpPanel.pinned && !popup.hidden;
+    helpPanel.pinned = true;
+    showHelpPanel();
+    if (adoptCurrent || !helpPanel.position) {
+      helpPanel.position = { left: popup.offsetLeft, top: popup.offsetTop };
+    }
+    saveHelpPanelState();
+  }
+
+  function restoreHelpPanel() {
+    const saved = readHelpPanelState();
+    if (Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+      helpPanel.position = { left: saved.left, top: saved.top };
+    }
+    if (!saved.open) return;
+    helpPanel.pinned = true;
+    showHelpPanel();
+  }
+
+  function setupHelpDrag(popup) {
+    let dragStart = null;
+    popup.addEventListener('mousedown', (event) => {
+      if (!helpPanel.pinned || event.button !== 0 || event.target.closest('.kg-help-close')) return;
+      dragStart = {
+        x: event.clientX,
+        y: event.clientY,
+        left: popup.offsetLeft,
+        top: popup.offsetTop
+      };
+      event.preventDefault();
+    });
+    document.addEventListener('mousemove', (event) => {
+      if (!dragStart) return;
+      const point = clampHelpPoint(
+        dragStart.left + event.clientX - dragStart.x,
+        dragStart.top + event.clientY - dragStart.y
+      );
+      popup.style.left = point.left + 'px';
+      popup.style.top = point.top + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (!dragStart) return;
+      dragStart = null;
+      helpPanel.position = { left: popup.offsetLeft, top: popup.offsetTop };
+      saveHelpPanelState();
+    });
+  }
+
   function setupHelpPopup() {
-    let popup = null;
     let ctrlDown = false;
     const getInput = () => document.getElementById('inputtext');
 
-    const hide = () => {
-      if (popup) popup.style.display = 'none';
-    };
-
-    const show = () => {
-      const inputtext = getInput();
-      if (!ctrlDown || !settings || !inputtext) return;
-      const theme = themes[currentTheme];
-      if (!popup) {
-        popup = document.createElement('div');
-        popup.className = 'kg-help-popup';
-        document.body.appendChild(popup);
-      }
-      popup.innerHTML = renderHelp(theme);
-      Object.assign(popup.style, {
-        position: 'absolute',
-        zIndex: 2010,
-        background: theme.background,
-        color: theme.text.after,
-        border: `2px solid ${theme.borderColor}`,
-        boxShadow: theme.shadow,
-        padding: '12px 18px',
-        fontSize: '15px',
-        fontFamily: 'Tahoma, Arial, sans-serif',
-        whiteSpace: 'pre-line',
-        pointerEvents: 'none',
-        userSelect: 'none',
-        width: 'fit-content',
-        maxWidth: '90vw',
-        display: 'block'
-      });
-
-      // Below the input by default, above if there is no space, always inside the viewport
-      const rect = inputtext.getBoundingClientRect();
-      const margin = 6;
-      const height = popup.offsetHeight;
-      const bottomEdge = window.innerHeight + window.scrollY;
-      let top = rect.bottom + window.scrollY + margin;
-      if (top + height > bottomEdge) top = rect.top + window.scrollY - height - margin;
-      if (top < window.scrollY) top = window.scrollY + margin;
-      if (top + height > bottomEdge) top = bottomEdge - height - margin;
-      popup.style.left = (rect.left + window.scrollX) + 'px';
-      popup.style.top = top + 'px';
-    };
-
-    const onModifierChange = (e) => {
-      ctrlDown = e.ctrlKey;
-      if (ctrlDown && getInput()?.matches(':hover')) show();
-      else hide();
+    const onModifierChange = (event) => {
+      ctrlDown = event.ctrlKey;
+      if (ctrlDown && getInput()?.matches(':hover')) showTransientHelp();
+      else hideTransientHelp();
     };
 
     window.addEventListener('keydown', onModifierChange);
     window.addEventListener('keyup', onModifierChange);
-    document.addEventListener('mouseover', (e) => {
-      if (e.target === getInput()) show();
+    window.addEventListener('resize', () => applyHelpPosition());
+    document.addEventListener('mouseover', (event) => {
+      if (ctrlDown && event.target === getInput()) showTransientHelp();
     });
-    document.addEventListener('mouseout', (e) => {
-      if (e.target === getInput()) hide();
+    document.addEventListener('mouseout', (event) => {
+      if (event.target === getInput()) hideTransientHelp();
     });
   }
 
@@ -1001,6 +1139,59 @@
         background-color: var(--kg-progress-fill, rgb(95, 160, 95)) !important;
         transform-origin: left center !important;
         transition: transform 0.15s ease-out !important;
+      }
+    `;
+  }
+
+  function getHelpCss() {
+    const theme = themes[currentTheme || defaultSettings.theme];
+    return `
+      .kg-help-popup {
+        position: fixed !important;
+        z-index: 2150 !important;
+        background: ${theme.background} !important;
+        color: ${theme.text.after} !important;
+        border: 2px solid ${theme.borderColor} !important;
+        border-radius: 0.4em !important;
+        box-shadow: ${theme.shadow} !important;
+        padding: 12px 18px !important;
+        font-size: 15px !important;
+        font-family: Tahoma, Arial, sans-serif !important;
+        white-space: pre-line !important;
+        user-select: none !important;
+        width: fit-content !important;
+        max-width: 90vw !important;
+      }
+
+      .kg-help-popup.kg-help-pinned {
+        padding-right: 44px !important;
+        cursor: move !important;
+      }
+
+      .kg-help-popup[hidden] {
+        display: none !important;
+      }
+
+      .kg-help-popup .kg-help-close {
+        display: none !important;
+        position: absolute !important;
+        top: 8px !important;
+        right: 8px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        cursor: pointer !important;
+        line-height: 0 !important;
+      }
+
+      .kg-help-popup.kg-help-pinned .kg-help-close {
+        display: flex !important;
+      }
+
+      .kg-help-popup .kg-help-close:hover {
+        background-color: var(--kg-close-hover-bg) !important;
+        color: var(--kg-close-hover-color) !important;
+        stroke: var(--kg-close-hover-color) !important;
       }
     `;
   }
@@ -1222,7 +1413,7 @@
 
   function updateStyles(opts = {}) {
     if (!styleElement) return;
-    styleElement.textContent = getBaseCss() +
+    styleElement.textContent = getBaseCss() + getHelpCss() +
       (isFloatingMode ? getFloatingCss(opts.inputTransition !== false) : '');
   }
 
@@ -1261,6 +1452,7 @@
 
     // Enable input color transition after the first paint
     setTimeout(updateStyles, 0);
+    renderHelpPanel();
   }
 
   function exitFloatingMode() {
@@ -1276,6 +1468,7 @@
     updateIndicators();
     // Native mode keeps the line-by-line view and the progress bar
     handleContentChanges();
+    renderHelpPanel();
   }
 
   const toggleFloatingMode = () => isFloatingMode ? exitFloatingMode() : enterFloatingMode();
@@ -1299,6 +1492,7 @@
     KeyA: { action: toggleAutoEnterFloating },
     KeyL: { action: toggleTextVisibilityMode },
     KeyP: { action: toggleProgressBar },
+    KeyH: { action: pinHelpPanel },
     KeyS: { action: toggleStats, floatingOnly: true },
     KeyT: { action: toggleTheme, floatingOnly: true },
     KeyQ: { action: toggleInputAlignment, floatingOnly: true }
@@ -1409,6 +1603,7 @@
           reloadSettings();
           ensureStyleElement();
           updateStyles();
+          restoreHelpPanel();
         }
         if (getSetting('autoEnterFloating')) enterFloatingMode();
         updateIndicators();
