@@ -1107,7 +1107,6 @@
       #${STATS_ID} .kg-speed-value {
         min-width: 3ch;
         text-align: right;
-        text-shadow: 0 0 8px currentColor;
       }
 
       #${STATS_ID} .kg-speed-unit,
