@@ -163,6 +163,7 @@
       color: theme.text.after,
       border: `2px solid ${theme.borderColor}`,
       borderRadius: '0.4em',
+      boxShadow: theme.shadowSmall,
       pointerEvents: 'none'
     });
     clearTimeout(toastTimeout);
