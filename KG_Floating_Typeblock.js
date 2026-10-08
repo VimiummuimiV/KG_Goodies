@@ -25,6 +25,7 @@
   const DIMMING_SENSITIVITY = 0.5;
   const INPUT_PADDING = 8;
   const TOAST_DURATION = 1500;
+  const BOX_SHADOW = '0 0 5px rgba(0,0,0,0.4)';
 
   const defaultSettings = {
     // false: floating mode is entered manually only (Alt + W or double click on the input)
@@ -115,6 +116,13 @@
   // ─── Utils ─────────────────────────────────────────────────────────────────
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+  // Element with the given properties and children
+  function createElement(tag, properties = {}, ...children) {
+    const element = Object.assign(document.createElement(tag), properties);
+    element.append(...children);
+    return element;
+  }
 
   // Tracked listeners of the floating mode, all removed when it exits
   const eventListeners = [];
@@ -367,29 +375,29 @@
 
   // The site status panel is covered by the dimming, so speed and errors are redrawn above the block
   const STATS_ID = 'kg-stats';
-  const SPEED_SCALE = { maxSpeed: 1000, hueRange: 130 };
+  const SPEED_SCALE = { maxSpeed: 1000, hueRange: 130, cells: 16 };
   const ERRORS_HIT_ANIMATION = [{ transform: 'scale(1.3)', filter: 'brightness(1.6)' }, { transform: 'scale(1)', filter: 'none' }];
   const ERRORS_HIT_DURATION = 350;
 
-  const STATS_MARKUP = `
-    <div class="kg-speed">
-      <div class="kg-speed-readout">
-        <span class="kg-speed-value">0</span><span class="kg-speed-unit">зн/мин</span>
-      </div>
-      <div class="kg-speed-bar"><div class="kg-speed-fill"></div></div>
-    </div>
-    <div class="kg-errors">
-      <span class="kg-errors-value">0</span><span class="kg-errors-label">ошибки</span>
-    </div>`;
+  function createStatsElement() {
+    const cells = Array.from({ length: SPEED_SCALE.cells }, () => createElement('div', { className: 'kg-speed-cell' }));
+    return createElement('div', { id: STATS_ID },
+      createElement('div', { className: 'kg-speed' },
+        createElement('div', { className: 'kg-speed-readout' },
+          createElement('span', { className: 'kg-speed-value', textContent: '0' }),
+          createElement('span', { className: 'kg-speed-unit', textContent: 'зн/мин' })),
+        createElement('div', { className: 'kg-speed-bar' }, ...cells)),
+      createElement('div', { className: 'kg-errors' },
+        createElement('span', { className: 'kg-errors-value', textContent: '0' }),
+        createElement('span', { className: 'kg-errors-label', textContent: 'ошибки' })));
+  }
 
   function ensureStatsElement() {
     let stats = document.getElementById(STATS_ID);
     if (stats) return stats;
     const mainBlock = document.getElementById('main-block');
     if (!mainBlock) return null;
-    stats = document.createElement('div');
-    stats.id = STATS_ID;
-    stats.innerHTML = STATS_MARKUP;
+    stats = createStatsElement();
     mainBlock.prepend(stats);
     return stats;
   }
@@ -417,9 +425,14 @@
     const speed = readNumber('speed-label');
     const errors = readNumber('errors-label');
     const ratio = clamp(speed / SPEED_SCALE.maxSpeed, 0, 1);
-    stats.style.setProperty('--kg-speed-ratio', ratio);
     stats.style.setProperty('--kg-speed-hue', Math.round((1 - ratio) * SPEED_SCALE.hueRange));
     setText(stats.querySelector('.kg-speed-value'), speed);
+
+    // A cell is either fully lit or off, never partially filled
+    const litCells = Math.round(ratio * SPEED_SCALE.cells);
+    stats.querySelectorAll('.kg-speed-cell').forEach((cell, index) => {
+      cell.classList.toggle('kg-speed-cell-lit', index < litCells);
+    });
 
     const errorsBox = stats.querySelector('.kg-errors');
     const errorsValue = errorsBox.querySelector('.kg-errors-value');
@@ -632,7 +645,7 @@
       stroke: text
     });
     span.style.setProperty('border-radius', '0.2em', 'important');
-    span.style.setProperty('box-shadow', '0 2px 4px rgba(0,0,0,0.2)', 'important');
+    span.style.setProperty('box-shadow', BOX_SHADOW, 'important');
   }
 
   function syncIndicator({ id, title, icon, isActive }) {
@@ -809,7 +822,7 @@
         color: theme.input.normal.text,
         cursor: 'pointer'
       });
-      btn.style.setProperty('box-shadow', '0 2px 4px rgba(0,0,0,0.2)', 'important');
+      btn.style.setProperty('box-shadow', BOX_SHADOW, 'important');
       btn.style.setProperty('border', `2px solid ${theme.borderColor}`, 'important');
       btn.style.setProperty('border-radius', '0.4em', 'important');
       btn.onmousedown = ev => ev.stopPropagation();
@@ -909,7 +922,7 @@
         background: theme.background,
         color: theme.text.after,
         border: `2px solid ${theme.borderColor}`,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+        boxShadow: BOX_SHADOW,
         padding: '12px 18px',
         fontSize: '15px',
         fontFamily: 'Tahoma, Arial, sans-serif',
@@ -1009,7 +1022,7 @@
         border: 2px solid ${theme.borderColor} !important;
         border-radius: 18px !important;
         background-color: ${theme.background} !important;
-        box-shadow: 0 0 5px rgba(0,0,0,0.4) !important;
+        box-shadow: ${BOX_SHADOW} !important;
       }
 
       #typeblock .rc {
@@ -1067,7 +1080,7 @@
         border: 2px solid ${theme.borderColor} !important;
         border-radius: 999px !important;
         background-color: ${theme.background} !important;
-        box-shadow: 0 0 5px rgba(0,0,0,0.4) !important;
+        box-shadow: ${BOX_SHADOW} !important;
         font-family: Tahoma, Arial, sans-serif !important;
         white-space: nowrap !important;
         user-select: none !important;
@@ -1110,20 +1123,20 @@
       }
 
       #${STATS_ID} .kg-speed-bar {
+        display: flex;
+        gap: 2px;
         width: 128px;
-        height: 4px;
-        background-color: ${theme.borderColor};
-        overflow: hidden;
-        -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);
-        mask-image: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);
       }
 
-      #${STATS_ID} .kg-speed-fill {
-        height: 100%;
+      #${STATS_ID} .kg-speed-cell {
+        flex: 1;
+        height: 4px;
+        border-radius: 1px;
+        background-color: ${theme.borderColor};
+      }
+
+      #${STATS_ID} .kg-speed-cell-lit {
         background-color: currentColor;
-        transform-origin: left center;
-        transform: scaleX(var(--kg-speed-ratio, 0));
-        transition: transform 0.25s ease-out;
       }
 
       #${STATS_ID} .kg-errors {
