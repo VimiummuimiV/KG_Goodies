@@ -395,7 +395,7 @@
       createElement('div', { className: 'kg-speed' },
         createElement('div', { className: 'kg-speed-readout' },
           createElement('span', { className: 'kg-speed-value', textContent: '0' }),
-          createElement('span', { className: 'kg-speed-unit', textContent: 'зн/мин' })),
+          createElement('span', { className: 'kg-speed-unit', textContent: 'скорость' })),
         createElement('div', { className: 'kg-speed-bar' }, ...cells)),
       createElement('div', { className: 'kg-errors' },
         createElement('span', { className: 'kg-errors-value', textContent: '0' }),
