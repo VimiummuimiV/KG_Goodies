@@ -380,7 +380,7 @@
   const ERRORS_HIT_DURATION = 350;
 
   function createStatsElement() {
-    const cells = Array.from({ length: SPEED_SCALE.cells }, () => createElement('div', { className: 'kg-speed-cell' }));
+    const cells = [...Array(SPEED_SCALE.cells)].map(() => createElement('div', { className: 'kg-speed-cell' }));
     return createElement('div', { id: STATS_ID },
       createElement('div', { className: 'kg-speed' },
         createElement('div', { className: 'kg-speed-readout' },
