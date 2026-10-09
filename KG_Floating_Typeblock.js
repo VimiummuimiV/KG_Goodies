@@ -24,6 +24,17 @@
   const PROGRESS_BAR_ID = 'kg-progress-bar';
   const FONT_SIZE = { min: 12, max: 48, step: 2 };
   const DIMMING_SENSITIVITY = 0.5;
+  const MATRIX = {
+    fontSize: 16,
+    stepInterval: 60,
+    opacity: 0.6,
+    trailFade: 0.05,
+    wordChance: 0.01,
+    minWordLength: 3,
+    glyphColor: '#0F0',
+    wordColor: '#CFC',
+    glyphs: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン'
+  };
   // The light theme starts to lose brightness only when the backdrop dimming (%) passes this level,
   // i.e. when the bright block really starts to glare on the dark backdrop
   const DIMMING_ELEMENTS_THRESHOLD = 70;
@@ -44,7 +55,8 @@
     isPartialMode: false,
     showProgress: true,
     showStats: true,
-    theme: 'dark'
+    theme: 'dark',
+    matrixEffect: false
   };
 
   // ─── Themes ────────────────────────────────────────────────────────────────
@@ -133,6 +145,8 @@
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+  const randomItem = (list) => list[Math.floor(Math.random() * list.length)];
+
   // Element with the given properties and children
   function createElement(tag, properties = {}, ...children) {
     const element = Object.assign(document.createElement(tag), properties);
@@ -185,6 +199,16 @@
 
   const onOff = (isOn) => isOn ? 'вкл' : 'выкл';
   const formatToggle = (label, isOn) => `${label}: ${onOff(isOn)}`;
+
+  // ─── Game API ──────────────────────────────────────────────────────────────
+
+  const getGameId = () => new URL(location.href).searchParams.get('gmid');
+
+  async function fetchGameText(gameId) {
+    const body = new URLSearchParams({ need_text: '1' });
+    const res = await fetch(`${location.origin}/g/${gameId}.info`, { method: 'POST', body });
+    return (await res.json()).text?.text ?? '';
+  }
 
   // ─── Settings ──────────────────────────────────────────────────────────────
 
@@ -629,6 +653,15 @@
       icon: svgIcon(`
         <rect x="2" y="9" width="20" height="6" rx="3"></rect>
         <line x1="6" y1="12" x2="12" y2="12"></line>`)
+    },
+    {
+      id: 'kg-matrix-indicator',
+      title: 'Эффект матрицы',
+      isActive: () => isFloatingMode && getSetting('matrixEffect'),
+      icon: svgIcon(`
+        <path d="M5 2v2M5 8v3M5 15v6"></path>
+        <path d="M12 2v1M12 6v2M12 12v4M12 20v1"></path>
+        <path d="M19 4v2M19 10v3M19 17v4"></path>`)
     }
   ];
 
@@ -746,6 +779,134 @@
     });
 
     document.body.appendChild(dimmingBg);
+  }
+
+  // ─── Matrix rain effect (floating) ─────────────────────────────────────────
+
+  // columns: falling streams { y, word, pos }; words: cache of the current game text, loaded once per game
+  const matrix = { canvas: null, ctx: null, raf: null, columns: [], lastStep: 0, gameId: null, words: [] };
+
+  // The effect brings its own dark base, so it is independent of the backdrop dimming level
+  const shouldShowMatrix = () => isFloatingMode && getSetting('matrixEffect');
+
+  const createMatrixColumn = () => ({ y: 1, word: '', pos: 0 });
+
+  // Whole text is requested once: the page itself reveals the words only as they get typed
+  function extractWords(text) {
+    const words = text.split(/\s+/).map(word => word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''));
+    return [...new Set(words.filter(word => word.length >= MATRIX.minWordLength))];
+  }
+
+  async function loadMatrixWords() {
+    const gameId = getGameId();
+    if (!gameId || matrix.gameId === gameId) return;
+    matrix.gameId = gameId;
+    try {
+      matrix.words = extractWords(await fetchGameText(gameId));
+    } catch {
+      matrix.gameId = null;
+    }
+  }
+
+  function fadeMatrix(alpha) {
+    const { ctx, canvas } = matrix;
+    ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Resizing clears the canvas, so the dark base is painted again
+  function resizeMatrix() {
+    const { canvas } = matrix;
+    if (!canvas) return;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    matrix.columns = Array.from({ length: Math.floor(canvas.width / MATRIX.fontSize) || 1 }, createMatrixColumn);
+    fadeMatrix(1);
+  }
+
+  function ensureMatrixCanvas() {
+    if (matrix.canvas) return;
+    matrix.canvas = createElement('canvas', { id: 'kg-matrix-canvas' });
+    Object.assign(matrix.canvas.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100vw',
+      height: '100vh',
+      zIndex: '1999',
+      pointerEvents: 'none',
+      opacity: MATRIX.opacity
+    });
+    matrix.ctx = matrix.canvas.getContext('2d');
+    document.body.appendChild(matrix.canvas);
+    addEvent(window, 'resize', resizeMatrix);
+  }
+
+  // A column prints a whole word letter by letter top to bottom, otherwise random glyphs
+  function stepMatrix() {
+    const { ctx, canvas, columns, words } = matrix;
+    fadeMatrix(MATRIX.trailFade);
+    ctx.font = MATRIX.fontSize + 'px monospace';
+    for (let index = 0; index < columns.length; index++) {
+      // A missing column is created on the spot, so a stale or sparse array can never break the animation
+      const column = columns[index] ??= createMatrixColumn();
+      if (!column.word && words.length && Math.random() < MATRIX.wordChance) {
+        Object.assign(column, { word: randomItem(words), pos: 0 });
+      }
+      const isWord = !!column.word;
+      ctx.fillStyle = isWord ? MATRIX.wordColor : MATRIX.glyphColor;
+      ctx.fillText(isWord ? column.word[column.pos] : randomItem(MATRIX.glyphs), index * MATRIX.fontSize, column.y * MATRIX.fontSize);
+
+      const wraps = column.y * MATRIX.fontSize > canvas.height && Math.random() > 0.975;
+      column.y = wraps ? 1 : column.y + 1;
+      if (wraps || (isWord && ++column.pos >= column.word.length)) column.word = '';
+    }
+  }
+
+  function matrixFrame(now) {
+    if (!shouldShowMatrix()) {
+      stopMatrixAnimation();
+      return;
+    }
+    if (now - matrix.lastStep >= MATRIX.stepInterval) {
+      matrix.lastStep = now;
+      stepMatrix();
+    }
+    matrix.raf = requestAnimationFrame(matrixFrame);
+  }
+
+  function startMatrixAnimation() {
+    if (matrix.raf) return;
+    ensureMatrixCanvas();
+    resizeMatrix();
+    loadMatrixWords();
+    matrix.canvas.style.display = 'block';
+    matrix.lastStep = 0;
+    matrix.raf = requestAnimationFrame(matrixFrame);
+  }
+
+  function stopMatrixAnimation() {
+    cancelAnimationFrame(matrix.raf);
+    matrix.raf = null;
+    if (matrix.canvas) matrix.canvas.style.display = 'none';
+  }
+
+  function updateMatrixEffect() {
+    if (shouldShowMatrix()) startMatrixAnimation();
+    else stopMatrixAnimation();
+  }
+
+  // The resize listener is already removed by removeEvents on exit; the words cache is kept
+  function destroyMatrix() {
+    stopMatrixAnimation();
+    matrix.canvas?.remove();
+    Object.assign(matrix, { canvas: null, ctx: null, columns: [] });
+  }
+
+  function toggleMatrixEffect() {
+    toggleSetting('matrixEffect', 'Эффект матрицы');
+    updateMatrixEffect();
+    updateIndicators();
   }
 
   // ─── Main block drag (floating) ────────────────────────────────────────────
@@ -887,6 +1048,7 @@
         { text: '[Режим отображения текста:] (Alt + L).', status: () => isPartialMode() ? 'построчно' : 'полностью' },
         { text: '[Выравнивание ввода:] (Alt + Q) + в плавающем режиме.', status: () => getSetting('alignInputWithFocus') },
         { text: '[Прогресс-бар:] (Alt + P) (виден, только пока текст обрезан).', status: () => getSetting('showProgress') },
+        { text: '[Матрица:] (Alt + M) эффект падающих символов и слов текста на тёмном фоне.', status: () => getSetting('matrixEffect') },
         { text: '[Скорость и ошибки:] (Alt + S) над блоком в плавающем режиме.', status: () => getSetting('showStats') },
         { text: '[Следующая игра:] (Ctrl + Enter) если (Ожидание/Гонка).' }
       ]
@@ -1541,6 +1703,7 @@
 
     handleContentChanges();
     updateIndicators();
+    updateMatrixEffect();
 
     // Enable input color transition after the first paint
     setTimeout(updateStyles, 0);
@@ -1552,6 +1715,7 @@
     removeEvents();
     dimmingBg?.remove();
     dimmingBg = null;
+    destroyMatrix();
     document.getElementById('kg-fontsize-indicator')?.remove();
     removeStats();
     resetStyles();
@@ -1589,6 +1753,7 @@
     KeyA: { action: toggleAutoEnterFloating },
     KeyL: { action: toggleTextVisibilityMode },
     KeyP: { action: toggleProgressBar },
+    KeyM: { action: toggleMatrixEffect, floatingOnly: true },
     KeyH: { action: toggleHelpPanel },
     KeyS: { action: toggleStats, floatingOnly: true },
     KeyT: { action: toggleTheme, floatingOnly: true },
@@ -1604,7 +1769,7 @@
   function openReplay() {
     if (document.body.classList.contains('latest-games-registered')) return;
     if (!isShown('waiting') && !isShown('racing')) return;
-    const gmid = location.href.match(/[?&]gmid=(\d+)/)?.[1];
+    const gmid = getGameId();
     if (gmid) location.href = `https://klavogonki.ru/g/${gmid}.replay`;
   }
 
